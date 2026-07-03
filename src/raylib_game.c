@@ -78,6 +78,14 @@ typedef struct {
     Rectangle dest;
 } Tile;
 
+typedef struct {
+    Player *player;
+    Tile *tiles;
+    SmoothCam *camera;
+    Rectangle *tile_rects;
+    size_t tile_count;
+} GameState;
+
 // TODO: Define your custom data types here
 
 //----------------------------------------------------------------------------------
@@ -95,7 +103,8 @@ static int frameCounter = 0;
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-static void UpdateDrawFrame(Player *player, Tile *tiles, Rectangle hard_rects[], size_t size_of_rects, SmoothCam *camera);      // Update and Draw one frame
+// static void run(void);
+static void UpdateDrawFrame(void *arg);      // Update and Draw one frame
 static Vector2 Normalize(Vector2 dir);
 bool pause_the_game();
 
@@ -152,56 +161,56 @@ bool pause_the_game() {
 }
 
 // Update and draw frame
-void UpdateDrawFrame(Player *player, Tile *tiles, Rectangle hard_rects[], size_t size_of_rects, SmoothCam *camera)
-{
+void UpdateDrawFrame(void *arg) {
     // Update
     //----------------------------------------------------------------------------------
     // TODO: Update variables / Implement example logic at this point
+    GameState *gs = (GameState*)arg;
 
-        Vector2 dir = {0, 0};
+    Vector2 dir = {0, 0};
 
-        if (IsKeyDown(KEY_S)) {
-            dir.y += 1;
-            player->source.x = 0;
-        }
-        if (IsKeyDown(KEY_W)) {
-            dir.y -= 1;
-            player->source.x = 32 * 1;
-        }
-        if (IsKeyDown(KEY_D)) {
-            dir.x += 1;
-            player->source.x = 32 * 2;
-        }
-        if (IsKeyDown(KEY_A)) {
-            dir.x -= 1;
-            player->source.x = 32 * 3;
-        }
+    if (IsKeyDown(KEY_S)) {
+        dir.y += 1;
+        gs->player->source.x = 0;
+    }
+    if (IsKeyDown(KEY_W)) {
+        dir.y -= 1;
+        gs->player->source.x = 32 * 1;
+    }
+    if (IsKeyDown(KEY_D)) {
+        dir.x += 1;
+        gs->player->source.x = 32 * 2;
+    }
+    if (IsKeyDown(KEY_A)) {
+        dir.x -= 1;
+        gs->player->source.x = 32 * 3;
+    }
 
-        // fmt.println(dir.x, dir.y)
-        printf("%f, %f\n", dir.x, dir.y);
-        float dt = GetFrameTime();
+    // fmt.println(dir.x, dir.y)
+    printf("%f, %f\n", dir.x, dir.y);
+    float dt = GetFrameTime();
 
-        player->old_pos = player->player_pos;
-        Vector2 norm_dir;
-        norm_dir = Normalize(dir);
+    gs->player->old_pos = gs->player->player_pos;
+    Vector2 norm_dir;
+    norm_dir = Normalize(dir);
 
-        player->player_pos.x += norm_dir.x * player->speed * dt;
-        player->hitbox.x = player->player_pos.x + 24;
-        collider_for_x(player, hard_rects, size_of_rects);
+    gs->player->player_pos.x += norm_dir.x * gs->player->speed * dt;
+    gs->player->hitbox.x = gs->player->player_pos.x + 24;
+    collider_for_x(gs->player, gs->tile_rects, gs->tile_count);
 
-        player->player_pos.y += norm_dir.y * player->speed * dt;
-        player->hitbox.y = player->player_pos.y + 15;
-        collider_for_y(player, hard_rects, size_of_rects);
+    gs->player->player_pos.y += norm_dir.y * gs->player->speed * dt;
+    gs->player->hitbox.y = gs->player->player_pos.y + 15;
+    collider_for_y(gs->player, gs->tile_rects, gs->tile_count);
 
-        float c = camera->smooth_cam_speed * dt;
-        Vector2 target_pos = player->player_pos;
-        target_pos.x += 40;
-        target_pos.y += 50;
-        camera->cam.target.x += (target_pos.x - camera->cam.target.x) * c;
-        camera->cam.target.y += (target_pos.y - camera->cam.target.y) * c;
+    float c = gs->camera->smooth_cam_speed * dt;
+    Vector2 target_pos = gs->player->player_pos;
+    target_pos.x += 40;
+    target_pos.y += 50;
+    gs->camera->cam.target.x += (target_pos.x - gs->camera->cam.target.x) * c;
+    gs->camera->cam.target.y += (target_pos.y - gs->camera->cam.target.y) * c;
 
-        player->dest.x = player->player_pos.x;
-        player->dest.y = player->player_pos.y;
+    gs->player->dest.x = gs->player->player_pos.x;
+    gs->player->dest.y = gs->player->player_pos.y;
 
 
     frameCounter++;
@@ -215,7 +224,7 @@ void UpdateDrawFrame(Player *player, Tile *tiles, Rectangle hard_rects[], size_t
 
     // BeginTextureMode(target);
     BeginDrawing();
-    BeginMode2D(camera->cam);
+    BeginMode2D(gs->camera->cam);
 
     if (pause_the_game()) {
         // ClearBackground(RAYWHITE);
@@ -239,7 +248,7 @@ void UpdateDrawFrame(Player *player, Tile *tiles, Rectangle hard_rects[], size_t
     } else {
         ClearBackground(RAYWHITE);
 
-        DrawTexturePro(player->texture, player->source, player->dest, (Vector2){0, 0}, 0, WHITE);
+        DrawTexturePro(gs->player->texture, gs->player->source, gs->player->dest, (Vector2){0, 0}, 0, WHITE);
 
 
         // Draw render texture to screen, scaled if required
@@ -263,6 +272,7 @@ void UpdateDrawFrame(Player *player, Tile *tiles, Rectangle hard_rects[], size_t
 // Program main entry point
 //------------------------------------------------------------------------------------
 
+
 int main(void) {
 #if !defined(_DEBUG)
     SetTraceLogLevel(LOG_NONE);         // Disable raylib trace log messages
@@ -270,7 +280,7 @@ int main(void) {
 
     // Initialization
     //--------------------------------------------------------------------------------------
-    InitWindow(screenWidth, screenHeight, "raylib gamejam template");
+    InitWindow(screenWidth, screenHeight, "GameJam");
 
     // TODO: Load resources / Initialize variables at this point
 
@@ -279,12 +289,8 @@ int main(void) {
     target = LoadRenderTexture(screenWidth, screenHeight);
     SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
 
-#if defined(PLATFORM_WEB)
-    emscripten_set_main_loop(UpdateDrawFrame, 60, 1);
-#else
-    SetTargetFPS(60);     // Set our game frames-per-second
-                          //--------------------------------------------------------------------------------------
 
+    GameState gs;
 
     Rectangle collision_rectangle = { 600, 250, 100, 100 };
 
@@ -293,12 +299,14 @@ int main(void) {
         // collision_rectangle1,
         // collision_rectangle2,
     };
+
     size_t size_of_rects = sizeof(arr_of_rects) / sizeof(arr_of_rects[0]);
+
 
     Player player = {
         .player_health_points = 5,
         .speed = 300,
-        .texture = LoadTexture("../assets/player/sqPlayer2.png"),
+        .texture = LoadTexture("./resources/assets/player/sqPlayer2.png"),
         .player_is_hit = false,
 
         .num_frame = 4,
@@ -324,8 +332,9 @@ int main(void) {
         },
     };
 
+
     Tile tiles = {
-        .texture = LoadTexture("../assets/tiles/ground.png"),
+        .texture = LoadTexture("./resources/assets/tiles/ground.png"),
 
         .source = {
             .x = 0,
@@ -357,10 +366,26 @@ int main(void) {
         }
     };
 
+
+#if defined(PLATFORM_WEB)
+    gs.tile_rects = arr_of_rects;
+    gs.tile_count = size_of_rects;
+    gs.player = &player;
+    gs.tiles = &tiles;
+    gs.camera = &camera;
+    emscripten_set_main_loop_arg(UpdateDrawFrame, &gs, 60, 1);
+#else
+    gs.tile_rects = arr_of_rects;
+    gs.tile_count = size_of_rects;
+    gs.player = &player;
+    gs.tiles = &tiles;
+    gs.camera = &camera;
+    SetTargetFPS(60);     // Set our game frames-per-second
+                          //--------------------------------------------------------------------------------------
+
     // Main game loop
-    while (!WindowShouldClose())    // Detect window close button
-    {
-        UpdateDrawFrame(&player, &tiles, arr_of_rects, size_of_rects, &camera);
+    while (!WindowShouldClose()) {    // Detect window close button
+        UpdateDrawFrame(&gs);
     }
 #endif
 
