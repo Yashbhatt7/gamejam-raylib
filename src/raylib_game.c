@@ -87,6 +87,8 @@ typedef struct {
 } GameState;
 
 // TODO: Define your custom data types here
+//global state for pausing the game
+bool paused = false;
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition (local to this module)
@@ -106,7 +108,6 @@ static int frameCounter = 0;
 // static void run(void);
 static void UpdateDrawFrame(void *arg);      // Update and Draw one frame
 static Vector2 Normalize(Vector2 dir);
-bool pause_the_game();
 
 
 //--------------------------------------------------------------------------------------------
@@ -151,22 +152,16 @@ void collider_for_y(Player *player, Rectangle hard_rects[], size_t size_of_rects
     }
 }
 
-bool pause_the_game() {
-    if (IsKeyDown(KEY_ENTER)) {
-        return false;
-    }
-    // if (IsKeyDown(KEY_ESCAPE)) {
-    return true;
-    // }
-}
+// bool pause_the_game() {
+//     if (IsKeyDown(KEY_ENTER)) {
+//         return false;
+//     }
+//     // if (IsKeyDown(KEY_ESCAPE)) {
+//     return true;
+//     // }
+// }
 
-// Update and draw frame
-void UpdateDrawFrame(void *arg) {
-    // Update
-    //----------------------------------------------------------------------------------
-    // TODO: Update variables / Implement example logic at this point
-    GameState *gs = (GameState*)arg;
-
+void UpdatePlayer(GameState *gs) {
     Vector2 dir = {0, 0};
 
     if (IsKeyDown(KEY_S)) {
@@ -204,16 +199,34 @@ void UpdateDrawFrame(void *arg) {
 
     float c = gs->camera->smooth_cam_speed * dt;
     Vector2 target_pos = gs->player->player_pos;
-    target_pos.x += 40;
-    target_pos.y += 50;
+    target_pos.x += 40.0;
+    target_pos.y += 50.0;
     gs->camera->cam.target.x += (target_pos.x - gs->camera->cam.target.x) * c;
     gs->camera->cam.target.y += (target_pos.y - gs->camera->cam.target.y) * c;
 
     gs->player->dest.x = gs->player->player_pos.x;
     gs->player->dest.y = gs->player->player_pos.y;
+    printf("\n\n%d\n\n", (int)gs->player->player_pos.x);
 
+}
 
-    frameCounter++;
+// Update and draw frame
+void UpdateDrawFrame(void *arg) {
+    // Update
+    //----------------------------------------------------------------------------------
+    // TODO: Update variables / Implement example logic at this point
+    GameState *gs = (GameState*)arg;
+
+    if (IsKeyPressed(KEY_TAB)) {
+        paused = !paused;
+    }
+
+    if (!paused) {
+        UpdatePlayer(gs);
+    } else {
+        frameCounter++;
+    }
+
     //----------------------------------------------------------------------------------
 
     // Draw
@@ -221,44 +234,40 @@ void UpdateDrawFrame(void *arg) {
     // Render game screen to a texture,
     // it could be useful for scaling or further shader postprocessing
 
-
     // BeginTextureMode(target);
     BeginDrawing();
     BeginMode2D(gs->camera->cam);
 
-    if (pause_the_game()) {
-        // ClearBackground(RAYWHITE);
-        ClearBackground(RAYWHITE);
+    ClearBackground(RAYWHITE);
+        if (paused && (frameCounter/20)%2) {
+            // ClearBackground(RAYWHITE);
 
-        // TODO: Draw your game screen here
+            // TODO: Draw your game screen here
 
-        DrawRectangle(70, 90, 200, 200, BLACK);
-        DrawRectangle(70 + 16, 90 + 16, 200 - 32, 200 - 32, RAYWHITE);
-        DrawText("raylib", 70 + 200 - MeasureText("raylib", 40) - 32, 90 + 200 - 40 - 24, 40, BLACK);
+            DrawRectangle(70, 90, 200, 200, BLACK);
+            DrawRectangle(70 + 16, 90 + 16, 200 - 32, 200 - 32, RAYWHITE);
+            DrawText("raylib", 70 + 200 - MeasureText("raylib", 40) - 32, 90 + 200 - 40 - 24, 40, BLACK);
 
-        DrawText("6.x", 290, 90 - 26, 280, BLACK);
-        DrawText("GAMEJAM", 70, 90 + 210, 120, MAROON);
+            DrawText("6.x", 290, 90 - 26, 280, BLACK);
+            DrawText("GAMEJAM", 70, 90 + 210, 120, MAROON);
+            DrawText("paused", 160, 500, 50, BLACK);
+            DrawRectangleLinesEx((Rectangle){ 0, 0, screenWidth, screenHeight }, 16, BLACK);
+            DrawTexturePro(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, -(float)target.texture.height },
+                    (Rectangle){ 0, 0, (float)target.texture.width, (float)target.texture.height }, (Vector2){ 0, 0 }, 0.0f, WHITE);
 
-        if ((frameCounter/20)%2) DrawText("are you ready?", 160, 500, 50, BLACK);
+        } else {
+            DrawTexturePro(gs->player->texture, gs->player->source, gs->player->dest, (Vector2){0, 0}, 0, WHITE);
+        }
 
-        DrawRectangleLinesEx((Rectangle){ 0, 0, screenWidth, screenHeight }, 16, BLACK);
-        DrawTexturePro(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, -(float)target.texture.height },
-                (Rectangle){ 0, 0, (float)target.texture.width, (float)target.texture.height }, (Vector2){ 0, 0 }, 0.0f, WHITE);
 
-    } else {
-        ClearBackground(RAYWHITE);
-
-        DrawTexturePro(gs->player->texture, gs->player->source, gs->player->dest, (Vector2){0, 0}, 0, WHITE);
-
+        EndMode2D();
+        EndDrawing();
+        // EndTextureMode();
 
         // Draw render texture to screen, scaled if required
 
         // TODO: Draw everything that requires to be drawn at this point, maybe UI?
-    }
 
-    EndMode2D();
-    // EndTextureMode();
-    EndDrawing();
 
 
     // if (IsKeyDown(KEY_ENTER)) {
