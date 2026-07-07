@@ -108,6 +108,8 @@ static int frameCounter = 0;
 // static void run(void);
 static void UpdateDrawFrame(void *arg);      // Update and Draw one frame
 static Vector2 Normalize(Vector2 dir);
+static void collider_for_x(Player *player, Rectangle hard_rects[], size_t size_of_rects);
+static void collider_for_y(Player *player, Rectangle hard_rects[], size_t size_of_rects);
 
 
 //--------------------------------------------------------------------------------------------
@@ -207,7 +209,6 @@ void UpdatePlayer(GameState *gs) {
     gs->player->dest.x = gs->player->player_pos.x;
     gs->player->dest.y = gs->player->player_pos.y;
     printf("\n\n%d\n\n", (int)gs->player->player_pos.x);
-
 }
 
 // Update and draw frame
@@ -236,6 +237,10 @@ void UpdateDrawFrame(void *arg) {
 
     // BeginTextureMode(target);
     BeginDrawing();
+    if (paused && (frameCounter/20)%2) {
+    //     DrawText("paused", 160, 500, 50, BLACK);
+        DrawText("paused", 160, 500, 50, BLACK);
+    }
     BeginMode2D(gs->camera->cam);
 
     ClearBackground(RAYWHITE);
@@ -244,13 +249,12 @@ void UpdateDrawFrame(void *arg) {
 
             // TODO: Draw your game screen here
 
-            DrawRectangle(70, 90, 200, 200, BLACK);
-            DrawRectangle(70 + 16, 90 + 16, 200 - 32, 200 - 32, RAYWHITE);
-            DrawText("raylib", 70 + 200 - MeasureText("raylib", 40) - 32, 90 + 200 - 40 - 24, 40, BLACK);
+            // DrawRectangle(70, 90, 200, 200, BLACK);
+            // DrawRectangle(70 + 16, 90 + 16, 200 - 32, 200 - 32, RAYWHITE);
+            // DrawText("raylib", 70 + 200 - MeasureText("raylib", 40) - 32, 90 + 200 - 40 - 24, 40, BLACK);
 
-            DrawText("6.x", 290, 90 - 26, 280, BLACK);
-            DrawText("GAMEJAM", 70, 90 + 210, 120, MAROON);
-            DrawText("paused", 160, 500, 50, BLACK);
+            // DrawText("6.x", 290, 90 - 26, 280, BLACK);
+            // DrawText("GAMEJAM", 70, 90 + 210, 120, MAROON);
             DrawRectangleLinesEx((Rectangle){ 0, 0, screenWidth, screenHeight }, 16, BLACK);
             DrawTexturePro(target.texture, (Rectangle){ 0, 0, (float)target.texture.width, -(float)target.texture.height },
                     (Rectangle){ 0, 0, (float)target.texture.width, (float)target.texture.height }, (Vector2){ 0, 0 }, 0.0f, WHITE);
@@ -282,6 +286,8 @@ void UpdateDrawFrame(void *arg) {
 //------------------------------------------------------------------------------------
 
 
+static GameState gs;
+
 int main(void) {
 #if !defined(_DEBUG)
     SetTraceLogLevel(LOG_NONE);         // Disable raylib trace log messages
@@ -290,6 +296,8 @@ int main(void) {
     // Initialization
     //--------------------------------------------------------------------------------------
     InitWindow(screenWidth, screenHeight, "GameJam");
+    SetExitKey(KEY_NULL);
+
 
     // TODO: Load resources / Initialize variables at this point
 
@@ -297,9 +305,6 @@ int main(void) {
     // NOTE: If screen is scaled, mouse input should be scaled proportionally
     target = LoadRenderTexture(screenWidth, screenHeight);
     SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
-
-
-    GameState gs;
 
     Rectangle collision_rectangle = { 600, 250, 100, 100 };
 
@@ -371,9 +376,11 @@ int main(void) {
             .offset = { screenWidth / 2.0, screenHeight / 2.0 },
             // target = player.player_pos,
             .rotation = 0.0,
-            .zoom = 1.3,
+            .zoom = 1.0,
         }
     };
+
+    //--------------------------------------------------------------------------------------
 
 
 #if defined(PLATFORM_WEB)

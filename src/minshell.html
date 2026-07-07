@@ -35,19 +35,23 @@
 
     <!-- Web Style -->
     <style>
-        body { 
-          margin: 0px; 
-          overflow: hidden; 
+        body {
+          margin: 0px;
+          overflow: hidden;
           background-color: black;
         }
-        canvas.emscripten { 
-          border: 0px none; 
+        canvas.emscripten {
+          border: 0px none;
           background-color: black;
           padding-left: 0;
           padding-right: 0;
           margin-left: auto;
           margin-right: auto;
           display: block;
+          width: 100%;
+          max-width: 1080px;
+          height: auto;
+          image-rendering: pixelated;
         }
     </style>
     <script type='text/javascript' src="https://cdn.jsdelivr.net/gh/eligrey/FileSaver.js/dist/FileSaver.min.js"> </script>
