@@ -10,6 +10,7 @@
 ********************************************************************************************/
 
 #include "raylib.h"
+#include <stddef.h>
 
 #if defined(PLATFORM_WEB)
     #include <emscripten/emscripten.h>      // Emscripten library
@@ -23,6 +24,19 @@
 //----------------------------------------------------------------------------------
 // Defines and Macros
 //----------------------------------------------------------------------------------
+
+#define MAX_BEE 16
+#define MAX_FAKE_BEE 16
+
+#define FIRST_WAVE_BEE 4
+#define FIRST_WAVE_FAKE_BEE 4
+
+#define SECOND_WAVE_BEE 8
+#define SECOND_WAVE_FAKE_BEE 8
+
+#define THIRD_WAVE_BEE 16
+#define THIRD_WAVE_FAKE_BEE 10
+
 // Simple log system to avoid printf() calls if required
 // NOTE: Avoiding those calls, also avoids const strings memory usage
 #define SUPPORT_LOG_INFO
@@ -35,24 +49,6 @@
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
 //----------------------------------------------------------------------------------
-
-// typedef struct {
-//     Texture2D texture;
-//     Vector2 position;
-// } Button;
-
-typedef enum {
-    SCREEN_LOGO = 0,
-    SCREEN_TITLE,
-    SCREEN_GAMEPLAY,
-    SCREEN_ENDING
-} GameScreen;
-
-typedef struct {
-    Camera2D cam;
-    Vector2 smoothed_cam_pos;
-    float smooth_cam_speed;
-} SmoothCam;
 
 typedef struct {
     int player_health_points;
@@ -68,62 +64,76 @@ typedef struct {
     Rectangle source;
     Rectangle dest;
 
-    // Direction direction;
-
     // player body
     Rectangle hitbox;
     Vector2 old_pos;
 } Player;
 
 typedef struct {
-    int id;
-    bool solid;
-    Vector2 tile_pos;
-    Texture2D texture;
-    Rectangle source;
-    Rectangle dest;
-} Tile;
+    Rectangle rect;
+    Vector2 speed;
+    bool active;
+    Color color;
+} Bee;
 
 typedef struct {
-    Player *player;
-    Tile *tiles;
-    SmoothCam *camera;
-    Rectangle *tile_rects;
-    size_t tile_count;
-} GameState;
+    Rectangle rect;
+    Vector2 speed;
+    bool active;
+    Color color;
+} FakeBee;
+
+typedef enum {
+    First = 0,
+    Second,
+    Third,
+} BeeWave;
 
 // TODO: Define your custom data types here
 //global state for pausing the game
-// static GameState gs = { 0 };
-static Player player = { 0 };
-static Tile tiles = { 0 };
-static SmoothCam camera = { 0 };
-static Rectangle arr_of_rects[2];
-static size_t size_of_rects = sizeof(arr_of_rects) / sizeof(arr_of_rects[0]);
-
-static bool first_time = true;
-static bool paused = false;
-
-//----------------------------------------------------------------------------------
-// Global Variables Definition (local to this module)
-//----------------------------------------------------------------------------------
 static const int screenWidth = 720;
 static const int screenHeight = 720;
+
+static Vector2 mousePos = {0, 0};
+
+static Player player = { 0 };
+static int score = 0;
+static bool gameover = false;
+static bool first_time = true;
+static bool paused = false;
+static bool victory = false;
+
+static Bee bee[MAX_BEE] = {0};
+static FakeBee fake_bee[MAX_FAKE_BEE] = {0};
+static BeeWave wave = {0};
+
+static float alpha = 0;
+static int active_bees = 0;
+static int active_fake_bees = 0;
+
+static bool good_bees_caught = false;
+static int fake_bees_caught = 0;
+static bool smooth = false;
+
 Texture2D title_screen;
 Texture2D pause_screen;
 
-static RenderTexture2D target = { 0 };  // Render texture to render our game
+static RenderTexture2D target = {0};  // Render texture to render our game
 static int frameCounter = 0;
 
-// TODO: Define global variables here, recommended to make them static
-// static GameScreen game_screen = 0;
+static Rectangle hard_rects[4] = {0};
+static size_t size_of_rects = 0;
+
+static float circle_radius = 20;
 
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-// static void run(void);
 static void UpdateDrawFrame(void);      // Update and Draw one frame
 static void InitGame();
+static void drawTiles();
+static void UpdateGame();
+static void UpdatePlayer();
 static Vector2 Normalize(Vector2 dir);
 static void collider_for_x(Player *player, Rectangle hard_rects[], size_t size_of_rects);
 static void collider_for_y(Player *player, Rectangle hard_rects[], size_t size_of_rects);
@@ -133,11 +143,78 @@ static void collider_for_y(Player *player, Rectangle hard_rects[], size_t size_o
 //--------------------------------------------------------------------------------------------
 
 void InitGame() {
-    Rectangle collision_rectangle = { 600, 250, 100, 100 };
-    Rectangle collision_rectangle1 = { 200, 600, 100, 100 };
+    paused = false;
+    gameover = false;
+    victory = false;
+    smooth = false;
+    wave = First;
 
-    arr_of_rects[0] = collision_rectangle;
-    arr_of_rects[0] = collision_rectangle1;
+    active_bees = FIRST_WAVE_BEE;
+    active_fake_bees = FIRST_WAVE_FAKE_BEE;
+
+    good_bees_caught = false;
+    fake_bees_caught = 0;
+
+    score = 0;
+    alpha = 0;
+
+    // initialize bees and fake_bees
+    for (int i = 0; i < MAX_BEE; i++) {
+        bee[i].rect.width = 32.0 * 1.5;
+        bee[i].rect.height = 32.0 * 1.5;
+
+        bee[i].rect.x = GetRandomValue(screenWidth, screenWidth + 1000);
+        bee[i].rect.y = GetRandomValue(0, screenHeight - fake_bee[i].rect.height);
+
+        bee[i].speed.x = 5;
+        bee[i].speed.y = 5;
+        bee[i].active = true;
+        bee[i].color = YELLOW;
+    }
+
+    for (int i = 0; i < MAX_FAKE_BEE; i++) {
+        fake_bee[i].rect.width = 32.0 * 1.5;
+        fake_bee[i].rect.height = 32.0 * 1.5;
+
+        fake_bee[i].rect.x = GetRandomValue(screenWidth, screenWidth + 1000);
+        fake_bee[i].rect.y = GetRandomValue(0, screenHeight - fake_bee[i].rect.height);
+
+        fake_bee[i].speed.x = 5;
+        fake_bee[i].speed.y = 5;
+        fake_bee[i].active = true;
+        fake_bee[i].color = RED;
+    }
+
+    Rectangle boundary1;
+        boundary1.x = 0;
+        boundary1.y = 0;
+        boundary1.width = 5;
+        boundary1.height = 720;
+
+    Rectangle boundary2;
+        boundary2.x = 0;
+        boundary2.y = 0;
+        boundary2.width = 720;
+        boundary2.height = 5;
+
+     Rectangle boundary3;
+        boundary3.x = 715;
+        boundary3.y = 0;
+        boundary3.width = 5;
+        boundary3.height = 720;
+
+     Rectangle boundary4;
+        boundary4.x = 0;
+        boundary4.y = 715;
+        boundary4.width = 720;
+        boundary4.height = 5;
+
+    hard_rects[0] = boundary1;
+    hard_rects[1] = boundary2;
+    hard_rects[2] = boundary3;
+    hard_rects[3] = boundary4;
+
+    size_of_rects = sizeof(hard_rects) / sizeof(hard_rects[0]);
 
     // Initialize player
     player.player_health_points = 5,
@@ -145,45 +222,23 @@ void InitGame() {
     player.texture = LoadTexture("./resources/assets/player/sqPlayer2.png"),
     player.player_is_hit = false,
 
+    player.player_pos.x = (float)screenWidth / 2 - 50;
+    player.player_pos.y = (float)screenHeight / 2 - 50;
+
     player.num_frame = 4,
     player.cur_frame = 0,
+
     // source refers to -> from where to start drawing
     player.source.x = 0.0;
         player.source.y = 0.0;
         player.source.width = 32.0;
         player.source.height = 32.0;
 
-    player.dest.x = 30.0;
-        player.dest.y = 30.0;
-        player.dest.width = 32.0 * 3;
-        player.dest.height = 32.0 * 3;
+        player.dest.width = 32.0 * 2;
+        player.dest.height = 32.0 * 2;
 
-    player.hitbox.width = 32.0 * 3 - 48;
-        player.hitbox.height = 32.0 * 3 - 15;
-
-
-    tiles.texture = LoadTexture("./resources/assets/tiles/ground.png"),
-
-    tiles.source.x = 0;
-        tiles.source.y = 0;
-        tiles.source.width = 16;
-        tiles.source.height = 16;
-
-    tiles.dest.x = 0;
-        tiles.dest.y = 0;
-        tiles.dest.width = 16 * 5;
-        tiles.dest.height = 16 * 5;
-
-    tiles.tile_pos.x = 600;
-    tiles.tile_pos.y = 300;
-
-    camera.smooth_cam_speed = 6.0;
-    camera.smoothed_cam_pos = (Vector2){0, 0};
-
-    camera.cam.offset = (Vector2){ screenWidth / 2.0, screenHeight / 2.0 };
-        // camera.cam.target = player.player_pos;
-        camera.cam.rotation = 0.0;
-        camera.cam.zoom = 1.0;
+        player.hitbox.width = 32.0;
+        player.hitbox.height = 54.0;
 }
 
 // Normalizing vector
@@ -204,7 +259,7 @@ void collider_for_x(Player *player, Rectangle hard_rects[], size_t size_of_rects
     for (size_t i = 0; i < size_of_rects; ++i) {
         if (CheckCollisionRecs(player->hitbox, hard_rects[i])) {
             player->player_pos.x = player->old_pos.x;
-            player->hitbox.x = player->old_pos.x + 24;
+            player->hitbox.x = player->old_pos.x + 16;
             // fmt.println("\n\n                Collided\n\n")
         } else {
             // fmt.println("\n")
@@ -216,7 +271,7 @@ void collider_for_y(Player *player, Rectangle hard_rects[], size_t size_of_rects
     for (size_t i = 0; i < size_of_rects; ++i) {
         if (CheckCollisionRecs(player->hitbox, hard_rects[i])) {
             player->player_pos.y = player->old_pos.y;
-            player->hitbox.y = player->old_pos.y + 15;
+            player->hitbox.y = player->old_pos.y + 10;
             // printf("\n\n                Collided\n\n");
         } else {
             // printf("\n");
@@ -224,16 +279,160 @@ void collider_for_y(Player *player, Rectangle hard_rects[], size_t size_of_rects
     }
 }
 
-// bool pause_the_game() {
-//     if (IsKeyDown(KEY_ENTER)) {
-//         return false;
-//     }
-//     // if (IsKeyDown(KEY_ESCAPE)) {
-//     return true;
-//     // }
-// }
+void UpdateGame() {
+    if (!gameover) {
+        switch(wave) {
+            case First:
+            {
+                if (!smooth)
+                {
+                    alpha += 0.02f;
+                    if (alpha >= 1.0f) smooth = true;
+                }
+
+                if (smooth) alpha -= 0.02f;
+
+                if (fake_bees_caught == active_fake_bees + 2)
+                {
+                    fake_bees_caught = 0;
+
+                    for (int i = 0; i < active_fake_bees; i++)
+                    {
+                        if (!fake_bee[i].active) fake_bee[i].active = true;
+                    }
+
+                    active_fake_bees = SECOND_WAVE_FAKE_BEE;
+                    wave = Second;
+                    smooth = false;
+                    alpha = 0.0f;
+                }
+                if (!good_bees_caught) {
+                    for (int i = 0; i < active_bees; i++)
+                    {
+                        if (!bee[i].active) bee[i].active = true;
+                    }
+
+                    active_bees = SECOND_WAVE_BEE;
+                }
+            } break;
+
+            case Second:
+            {
+                if (!smooth)
+                {
+                    alpha += 0.02f;
+
+                    if (alpha >= 1.0f) smooth = true;
+                }
+
+                if (smooth) alpha -= 0.02f;
+
+                if (fake_bees_caught == active_fake_bees + 4)
+                {
+                    fake_bees_caught = 0;
+
+                    for (int i = 0; i < active_fake_bees; i++)
+                    {
+                        if (!fake_bee[i].active) fake_bee[i].active = true;
+                    }
+
+                    active_fake_bees = THIRD_WAVE_FAKE_BEE;
+                    wave = Third;
+                    smooth = false;
+                    alpha = 0.0f;
+                }
+                if (!good_bees_caught) {
+                    for (int i = 0; i < active_bees; i++)
+                    {
+                        if (!bee[i].active) bee[i].active = true;
+                    }
+
+                    active_bees = THIRD_WAVE_BEE - 8;
+                }
+            } break;
+
+            case Third:
+            {
+                if (!smooth)
+                {
+                    alpha += 0.02f;
+
+                    if (alpha >= 1.0f) smooth = true;
+                }
+
+                if (smooth) alpha -= 0.02f;
+
+                if (fake_bees_caught == active_fake_bees + 8) victory = true;
+
+            } break;
+
+            default: break;
+        }
+
+        // Player collision with bee
+        for (int i = 0; i < active_fake_bees; i++)
+        {
+            if (CheckCollisionRecs(player.hitbox, fake_bee[i].rect)) gameover = true;
+            if (CheckCollisionRecs(player.hitbox, bee[i].rect)) gameover = true;
+        }
+
+        // fake_bee behaviour
+        for (int i = 0; i < active_fake_bees; i++)
+        {
+            if (fake_bee[i].active)
+            {
+                fake_bee[i].rect.x -= fake_bee[i].speed.x;
+
+                if (fake_bee[i].rect.x < 0)
+                {
+                    fake_bee[i].rect.x = GetRandomValue(screenWidth, screenWidth + 1000);
+                    fake_bee[i].rect.y = GetRandomValue(0, screenHeight - fake_bee[i].rect.height);
+                }
+            }
+        }
+
+        for (int i = 0; i < active_bees; i++)
+        {
+            if (bee[i].active)
+            {
+                bee[i].rect.x -= bee[i].speed.x;
+
+                if (bee[i].rect.x < 0)
+                {
+                    bee[i].rect.x = GetRandomValue(screenWidth, screenWidth + 1000);
+                    bee[i].rect.y = GetRandomValue(0, screenHeight - bee[i].rect.height);
+                }
+            }
+        }
+
+        for (int i = 0; i < active_fake_bees; ++i) {
+            if (CheckCollisionCircleRec(mousePos, circle_radius, fake_bee[i].rect)) {
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    fake_bee[i].rect.x = GetRandomValue(screenWidth, screenWidth + 1000);
+                    fake_bee[i].rect.y = GetRandomValue(0, screenHeight - fake_bee[i].rect.height);
+                    ++fake_bees_caught;
+                    score += 100;
+                }
+            }
+        }
+
+        for (int i = 0; i < active_bees; ++i) {
+            if (CheckCollisionCircleRec(mousePos, circle_radius, bee[i].rect)) {
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                    gameover = true;
+                }
+            }
+        }
+    } else {
+        if (IsKeyPressed(KEY_ENTER)) {
+            InitGame();
+            gameover = false;
+        }
+    }
+}
 
 void UpdatePlayer() {
+    mousePos = GetMousePosition();
     Vector2 dir = {0, 0};
 
     if (IsKeyDown(KEY_S)) {
@@ -253,8 +452,6 @@ void UpdatePlayer() {
         player.source.x = 32 * 3;
     }
 
-    // fmt.println(dir.x, dir.y)
-    printf("%f, %f\n", dir.x, dir.y);
     float dt = GetFrameTime();
 
     player.old_pos = player.player_pos;
@@ -262,23 +459,45 @@ void UpdatePlayer() {
     norm_dir = Normalize(dir);
 
     player.player_pos.x += norm_dir.x * player.speed * dt;
-    player.hitbox.x = player.player_pos.x + 24;
-    collider_for_x(&player, arr_of_rects, size_of_rects);
+    player.hitbox.x = player.player_pos.x + 16;
+    collider_for_x(&player, hard_rects, size_of_rects);
 
     player.player_pos.y += norm_dir.y * player.speed * dt;
-    player.hitbox.y = player.player_pos.y + 15;
-    collider_for_y(&player, arr_of_rects, size_of_rects);
+    player.hitbox.y = player.player_pos.y + 10;
+    collider_for_y(&player, hard_rects, size_of_rects);
 
-    float c = camera.smooth_cam_speed * dt;
-    Vector2 target_pos = player.player_pos;
-    target_pos.x += 40.0;
-    target_pos.y += 50.0;
-    camera.cam.target.x += (target_pos.x - camera.cam.target.x) * c;
-    camera.cam.target.y += (target_pos.y - camera.cam.target.y) * c;
 
     player.dest.x = player.player_pos.x;
     player.dest.y = player.player_pos.y;
     printf("\n\n%d\n\n", (int)player.player_pos.x);
+    printf("\n\n%d\n\n", (int)player.player_pos.y);
+}
+
+void drawTiles() {
+    float SposY = 0;
+
+    float posX = 0;
+    float posY = 0;
+
+    float radius = 30;
+    float inradius = (radius * sqrt(3)) / 2;
+
+    int width = 32;
+    int height = 32;
+
+    for (int i = 0; i < width; ++i) {
+        if (i % 2 == 0) {
+            posY = SposY;
+        } else {
+            posY = SposY + inradius;
+        }
+        for (int j = 0; j < height; ++j) {
+            DrawPoly((Vector2){posX, posY}, 6, radius, 0, (Color){235, 169, 55, 255});
+            DrawPolyLinesEx((Vector2){posX, posY}, 6, radius, 0, 1, BLACK);
+            posY += inradius * 2;
+        }
+        posX += radius + (int)(radius/2);
+    }
 }
 
 // Update and draw frame
@@ -295,82 +514,62 @@ void UpdateDrawFrame(void) {
 
     if (!paused) {
         UpdatePlayer();
+        UpdateGame();
     } else {
         frameCounter++;
     }
 
-    //----------------------------------------------------------------------------------
-
-    // Draw
-    //----------------------------------------------------------------------------------
-    // Render game screen to a texture,
-    // it could be useful for scaling or further shader postprocessing
-
-    // BeginTextureMode(target);
     BeginDrawing();
-    if (paused && (frameCounter/20)%2) {
-    //     DrawText("paused", 160, 500, 50, BLACK);
-    }
-    BeginMode2D(camera.cam);
-
     ClearBackground(RAYWHITE);
-    if (first_time) {
-        BeginDrawing();
-        ClearBackground(RAYWHITE);
-        // DrawTexture(title_screen,  screenWidth/2, screenHeight/2, WHITE);
-        // DrawTextureEx(Texture2D texture, Vector2 position, float rotation, float scale, Color tint);
-        DrawTextureEx(title_screen, (Vector2){(float)screenWidth/2 - 320, (float)screenHeight/2 - 340}, 0, 5, WHITE);
-        if (IsKeyDown(KEY_SPACE)) {
-            first_time = false;
-        }
-    } else if (!first_time) {
-        if (paused) {
-            // ClearBackground(RAYWHITE);
+        drawTiles();
+        if (!gameover) {
+            if (first_time) {
+                BeginDrawing();
+                DrawTextureEx(title_screen, (Vector2){(float)screenWidth/2 - 320, (float)screenHeight/2 - 340}, 0, 5, WHITE);
+                if (IsKeyDown(KEY_SPACE)) {
+                    first_time = false;
+                }
+            } else if (!first_time) {
+                if (paused) {
+                    if ((frameCounter/20)%2) {
+                        DrawText("paused", screenWidth/2, screenHeight/2, 50, BLACK);
+                    }
+                } else {
+                    if (wave == First) DrawText("FIRST WAVE", screenWidth/2 - MeasureText("FIRST WAVE", 40)/2, screenHeight/2 - 40, 40, Fade(BLACK, alpha));
+                    else if (wave == Second) DrawText("SECOND WAVE", screenWidth/2 - MeasureText("SECOND WAVE", 40)/2, screenHeight/2 - 40, 40, Fade(BLACK, alpha));
+                    else if (wave == Third) DrawText("THIRD WAVE", screenWidth/2 - MeasureText("THIRD WAVE", 40)/2, screenHeight/2 - 40, 40, Fade(BLACK, alpha));
 
-            // TODO: Draw your game screen here
+                    DrawTexturePro(player.texture, player.source, player.dest, (Vector2){0, 0}, 0, WHITE);
+                    DrawCircleLinesV(mousePos, circle_radius, WHITE);
+                    DrawRectangleLinesEx(player.hitbox, 2, BLUE);
+                    DrawRectangleLinesEx(hard_rects[0], 3, RED);
+                    DrawRectangleLinesEx(hard_rects[1], 3, RED);
+                    DrawRectangleLinesEx(hard_rects[2], 3, RED);
+                    DrawRectangleLinesEx(hard_rects[3], 3, RED);
 
-            // DrawRectangle(70, 90, 200, 200, BLACK);
-            // DrawRectangle(70 + 16, 90 + 16, 200 - 32, 200 - 32, RAYWHITE);
-            // DrawText("raylib", 70 + 200 - MeasureText("raylib", 40) - 32, 90 + 200 - 40 - 24, 40, BLACK);
+                    for (int i = 0; i < active_fake_bees; i++) {
+                        if (fake_bee[i].active) DrawRectangleRec(fake_bee[i].rect, fake_bee[i].color);
+                    }
 
-            DrawTextureEx(pause_screen, (Vector2){(float)screenWidth/2 - 760, (float)screenHeight/2 - 640}, 0, 6, WHITE);
+                    for (int i = 0; i < active_bees; i++) {
+                        if (bee[i].active) DrawRectangleRec(bee[i].rect, bee[i].color);
+                    }
 
-            if ((frameCounter/20)%2) {
-                DrawText("paused", camera.cam.target.x - 170, camera.cam.target.y, 50, BLACK);
+                    DrawText(TextFormat("%04i", score), 20, 20, 40, GRAY);
+
+                    if (victory) DrawText("YOU WIN", screenWidth/2 - MeasureText("YOU WIN", 40)/2, screenHeight/2 - 40, 40, BLACK);
+                }
             }
         } else {
-            DrawTexturePro(player.texture, player.source, player.dest, (Vector2){0, 0}, 0, WHITE);
+            DrawText("PRESS [ENTER] TO PLAY AGAIN", GetScreenWidth()/2 - MeasureText("PRESS [ENTER] TO PLAY AGAIN", 20)/2, GetScreenHeight()/2 - 50, 20, GRAY);
         }
-    }
 
-        EndMode2D();
-        EndDrawing();
-        // EndTextureMode();
-
-        // Draw render texture to screen, scaled if required
-
-        // TODO: Draw everything that requires to be drawn at this point, maybe UI?
-
-
-
-    // if (IsKeyDown(KEY_ENTER)) {
-    // }
-
-    // Render to screen (main framebuffer)
-    //----------------------------------------------------------------------------------
+    EndDrawing();
 }
 
 //------------------------------------------------------------------------------------
 // Program main entry point
 //------------------------------------------------------------------------------------
-
-
-
-// void checkCollisionForMouseClick() {
-//
-// }
-
-
 
 int main(void) {
 #if !defined(_DEBUG)
@@ -378,22 +577,16 @@ int main(void) {
 #endif
 
     // Initialization
-    //--------------------------------------------------------------------------------------
-    InitWindow(screenWidth, screenHeight, "GameJam");
+    InitWindow(screenWidth, screenHeight, "Conquer The Hive");
     // SetExitKey(KEY_NULL);
 
-    // TODO: Load resources / Initialize variables at this point
-
-    // Render texture to draw, enables screen scaling
-    // NOTE: If screen is scaled, mouse input should be scaled proportionally
     target = LoadRenderTexture(screenWidth, screenHeight);
     SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
 
-    title_screen = LoadTexture("./resources/assets/title_and_pause/play_menu.png");
-    pause_screen = LoadTexture("./resources/assets/title_and_pause/pause_menu.png");
+    title_screen = LoadTexture("./resources/assets/menu/play_menu.png");
+    pause_screen = LoadTexture("./resources/assets/menu/pause_menu.png");
 
     InitGame();
-
 
     //--------------------------------------------------------------------------------------
 #if defined(PLATFORM_WEB)
@@ -407,15 +600,13 @@ int main(void) {
         UpdateDrawFrame();
     }
 #endif
-
     // De-Initialization
-    //--------------------------------------------------------------------------------------
     UnloadRenderTexture(target);
-
-    // TODO: Unload all loaded resources at this point
+    UnloadTexture(title_screen);
+    UnloadTexture(pause_screen);
+    UnloadTexture(player.texture);
 
     CloseWindow();        // Close window and OpenGL context
-                          //--------------------------------------------------------------------------------------
 
     return 0;
 }
