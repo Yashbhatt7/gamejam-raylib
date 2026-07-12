@@ -541,11 +541,11 @@ void UpdateDrawFrame(void) {
 
                     DrawTexturePro(player.texture, player.source, player.dest, (Vector2){0, 0}, 0, WHITE);
                     DrawCircleLinesV(mousePos, circle_radius, WHITE);
-                    DrawRectangleLinesEx(player.hitbox, 2, BLUE);
-                    DrawRectangleLinesEx(hard_rects[0], 3, RED);
-                    DrawRectangleLinesEx(hard_rects[1], 3, RED);
-                    DrawRectangleLinesEx(hard_rects[2], 3, RED);
-                    DrawRectangleLinesEx(hard_rects[3], 3, RED);
+                    // DrawRectangleLinesEx(player.hitbox, 2, BLUE);
+                    // DrawRectangleLinesEx(hard_rects[0], 3, RED);
+                    // DrawRectangleLinesEx(hard_rects[1], 3, RED);
+                    // DrawRectangleLinesEx(hard_rects[2], 3, RED);
+                    // DrawRectangleLinesEx(hard_rects[3], 3, RED);
 
                     for (int i = 0; i < active_fake_bees; i++) {
                         if (fake_bee[i].active) DrawRectangleRec(fake_bee[i].rect, fake_bee[i].color);
