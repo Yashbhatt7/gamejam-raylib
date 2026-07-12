@@ -557,7 +557,7 @@ void UpdateDrawFrame(void) {
 
                     DrawText(TextFormat("%04i", score), 20, 20, 40, GRAY);
 
-                    if (victory) DrawText("YOU WIN", screenWidth/2 - MeasureText("YOU WIN", 40)/2, screenHeight/2 - 40, 40, BLACK);
+                    if (victory) DrawText("YOU WIN", screenWidth/2 - MeasureText("YOU WIN", 40)/2, screenHeight/2 - 40, 40, Fade(BLACK, alpha));
                 }
             }
         } else {
