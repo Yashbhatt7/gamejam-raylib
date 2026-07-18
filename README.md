@@ -1,6 +1,6 @@
 ## Conquer The Hive
 
-![$(Game Title)](src/resources/assets/menu/play_menu.png "$(Game Title)")
+![$(Game Title)](screenshots/play_menu.png "$(Game Title)")
 
 ### Survive In The Bee Hive
 
