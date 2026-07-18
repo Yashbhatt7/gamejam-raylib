@@ -74,6 +74,7 @@ typedef struct {
     Vector2 speed;
     bool active;
     Color color;
+    Texture2D texture;
 } Bee;
 
 typedef struct {
@@ -81,6 +82,7 @@ typedef struct {
     Vector2 speed;
     bool active;
     Color color;
+    Texture2D texture;
 } FakeBee;
 
 typedef enum {
@@ -161,7 +163,7 @@ void InitGame() {
     // initialize bees and fake_bees
     for (int i = 0; i < MAX_BEE; i++) {
         bee[i].rect.width = 32.0 * 1.5;
-        bee[i].rect.height = 32.0 * 1.5;
+        bee[i].rect.height = 32.0 * 1.6;
 
         bee[i].rect.x = GetRandomValue(screenWidth, screenWidth + 1000);
         bee[i].rect.y = GetRandomValue(0, screenHeight - fake_bee[i].rect.height);
@@ -171,10 +173,11 @@ void InitGame() {
         bee[i].active = true;
         bee[i].color = YELLOW;
     }
+    bee[0].texture = LoadTexture("./resources/assets/bees/bee.png");
 
     for (int i = 0; i < MAX_FAKE_BEE; i++) {
         fake_bee[i].rect.width = 32.0 * 1.5;
-        fake_bee[i].rect.height = 32.0 * 1.5;
+        fake_bee[i].rect.height = 32.0 * 1.6;
 
         fake_bee[i].rect.x = GetRandomValue(screenWidth, screenWidth + 1000);
         fake_bee[i].rect.y = GetRandomValue(0, screenHeight - fake_bee[i].rect.height);
@@ -184,6 +187,7 @@ void InitGame() {
         fake_bee[i].active = true;
         fake_bee[i].color = RED;
     }
+    fake_bee[0].texture = LoadTexture("./resources/assets/bees/fake_bee.png");
 
     Rectangle boundary1;
         boundary1.x = 0;
@@ -370,9 +374,11 @@ void UpdateGame() {
         }
 
         // Player collision with bee
-        for (int i = 0; i < active_fake_bees; i++)
-        {
+        for (int i = 0; i < active_fake_bees; ++i) {
             if (CheckCollisionRecs(player.hitbox, fake_bee[i].rect)) gameover = true;
+        }
+
+        for (int i = 0; i < active_bees; ++i) {
             if (CheckCollisionRecs(player.hitbox, bee[i].rect)) gameover = true;
         }
 
@@ -547,21 +553,28 @@ void UpdateDrawFrame(void) {
                     // DrawRectangleLinesEx(hard_rects[2], 3, RED);
                     // DrawRectangleLinesEx(hard_rects[3], 3, RED);
 
-                    for (int i = 0; i < active_fake_bees; i++) {
-                        if (fake_bee[i].active) DrawRectangleRec(fake_bee[i].rect, fake_bee[i].color);
-                    }
-
                     for (int i = 0; i < active_bees; i++) {
-                        if (bee[i].active) DrawRectangleRec(bee[i].rect, bee[i].color);
+                        if (bee[i].active) {
+                            // DrawRectangleRec(bee[i].rect, bee[i].color);
+                            DrawTextureEx(bee[0].texture, (Vector2){ bee[i].rect.x, bee[i].rect.y }, 0, 2, WHITE);
+                        }
                     }
 
-                    DrawText(TextFormat("%04i", score), 20, 20, 40, GRAY);
+                    for (int i = 0; i < active_fake_bees; i++) {
+                        if (fake_bee[i].active) {
+                            // DrawRectangleRec(fake_bee[i].rect, fake_bee[i].color);
+                            // DrawTextureV();
+                            DrawTextureEx(fake_bee[0].texture, (Vector2){ fake_bee[i].rect.x, fake_bee[i].rect.y }, 0, 2, WHITE);
+                        }
+                    }
 
-                    if (victory) DrawText("YOU WIN", screenWidth/2 - MeasureText("YOU WIN", 40)/2, screenHeight/2 - 40, 40, Fade(BLACK, alpha));
+                    DrawText(TextFormat("%04i", score), 20, 20, 40, WHITE);
+
+                    if (victory) DrawText("YOU WIN", screenWidth/2 - MeasureText("YOU WIN", 40)/2, screenHeight/2 - 40, 40, Fade(BLACK, 0.5));
                 }
             }
         } else {
-            DrawText("PRESS [ENTER] TO PLAY AGAIN", GetScreenWidth()/2 - MeasureText("PRESS [ENTER] TO PLAY AGAIN", 20)/2, GetScreenHeight()/2 - 50, 20, GRAY);
+            DrawText("PRESS [ENTER] TO PLAY AGAIN", GetScreenWidth()/2 - MeasureText("PRESS [ENTER] TO PLAY AGAIN", 20)/2, GetScreenHeight()/2 - 50, 20, WHITE);
         }
 
     EndDrawing();
