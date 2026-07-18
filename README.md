@@ -15,10 +15,6 @@ Keyboard & Mouse:
  - Mouse to click
  - Tab to pause
 
-### Screenshots
-
-_TODO: Show your game to the world, animated GIFs recommended!._
-
 ### Developers
 
  - Me
