@@ -512,7 +512,7 @@ void UpdateDrawFrame(void) {
         }
     }
 
-    if (!paused) {
+    if (!paused && !first_time) {
         UpdatePlayer();
         UpdateGame();
     } else {
